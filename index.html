@@ -1,0 +1,1175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <!-- Zoom කිරීම නැවැත්වීමට සහ තිරයට හරියටම Fit වීමට Viewport එක යාවත්කාලීන කර ඇත -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Mobcash App</title>
+    <!-- Supabase Client Library -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background-color: #000000; 
+            font-family: Arial, sans-serif;
+            transition: background-color 0.5s ease; 
+            overflow: hidden; 
+            /* අකුරු Copy කිරීම (Text Selection) සම්පූර්ණයෙන්ම නැවැත්වීම */
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+            user-select: none;
+            /* Mobile එකේ ඔබන විට එන නිල් පැහැති Highlight එක නැවැත්වීම */
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        /* Input fields වල (Username/Password) type කිරීම සහ copy/paste කිරීම සඳහා අවසර දීම */
+        input {
+            -webkit-user-select: auto;
+            -moz-user-select: auto;
+            -ms-user-select: auto;
+            user-select: auto;
+        }
+
+        /* Wallet Address එක පමණක් copy කරගැනීමට අවසර දීම */
+        #qr-address-text {
+            -webkit-user-select: text;
+            -moz-user-select: text;
+            -ms-user-select: text;
+            user-select: text;
+        }
+
+        /* 1. Loading Screen Styles */
+        .loading-container {
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .logo {
+            width: 180px; 
+            margin-bottom: 40px;
+            animation: pulse 2s infinite ease-in-out;
+        }
+
+        .dots-container {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+        }
+
+        .dot {
+            width: 20px;
+            height: 20px;
+            border: 3px solid #00cc00;
+            border-radius: 50%;
+            background-color: transparent;
+            animation: fillDot 1.8s infinite;
+        }
+
+        .dot:nth-child(1) { animation-delay: 0s; }
+        .dot:nth-child(2) { animation-delay: 0.3s; }
+        .dot:nth-child(3) { animation-delay: 0.6s; }
+        .dot:nth-child(4) { animation-delay: 0.9s; }
+        .dot:nth-child(5) { animation-delay: 1.2s; }
+
+        @keyframes fillDot {
+            0%, 100% {
+                background-color: transparent;
+                transform: scale(1);
+            }
+            50% {
+                background-color: #00cc00;
+                transform: scale(1.2);
+            }
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+
+        /* 2. Main Screen Styles */
+        .main-container {
+            display: none; 
+            flex-direction: column;
+            align-items: center;
+            width: 100%;
+            height: 100vh;
+            position: absolute;
+            top: 0;
+            left: 0;
+            box-sizing: border-box;
+            animation: fadeIn 0.8s ease-in-out;
+        }
+
+        .app-icon-main {
+            width: 125px; 
+            height: 125px; 
+            margin-top: 22vh; 
+            margin-bottom: 15px;
+        }
+
+        .brand-name {
+            color: #1a1a1a;
+            font-size: 2.2rem;
+            font-weight: bold;
+            margin-bottom: 8px;
+        }
+
+        .brand-slogan {
+            color: #777777;
+            font-size: 1.1rem;
+            font-weight: normal;
+            margin-bottom: auto; 
+        }
+
+        .login-btn-main {
+            background-color: #00cc00;
+            color: #ffffff;
+            border: none;
+            border-radius: 30px;
+            padding: 16px 0;
+            font-size: 1.2rem;
+            font-weight: bold;
+            width: 85%;
+            max-width: 350px;
+            cursor: pointer;
+            margin-bottom: 8vh; 
+            box-shadow: 0 4px 12px rgba(0, 204, 0, 0.3);
+            transition: background-color 0.3s ease, transform 0.1s ease;
+        }
+
+        .login-btn-main:active {
+            background-color: #009900;
+            transform: scale(0.97);
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* 3. Login Form Screen Styles */
+        .login-form-container {
+            display: none; 
+            flex-direction: column;
+            width: 100%;
+            height: 100vh;
+            position: absolute;
+            top: 0;
+            left: 0;
+            background-color: #ffffff;
+            box-sizing: border-box;
+            padding: 20px 25px;
+            animation: fadeIn 0.4s ease-in-out;
+        }
+
+        .top-bar {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            margin-top: 20px;
+            margin-bottom: 30px;
+        }
+
+        .back-btn {
+            position: absolute;
+            left: 0;
+            cursor: pointer;
+            width: 24px;
+            height: 24px;
+            fill: #1a1a1a;
+        }
+
+        .top-bar-title {
+            font-size: 1.2rem;
+            font-weight: bold;
+            color: #1a1a1a;
+        }
+
+        .app-icon-form {
+            width: 80px;
+            height: 80px;
+            align-self: center;
+            margin-bottom: 40px;
+        }
+
+        .input-group {
+            margin-bottom: 20px;
+            width: 100%;
+        }
+
+        .input-group label {
+            display: block;
+            font-size: 0.9rem;
+            font-weight: bold;
+            color: #1a1a1a;
+            margin-bottom: 8px;
+        }
+
+        .input-group input {
+            width: 100%;
+            padding: 16px;
+            border-radius: 12px;
+            border: none;
+            background-color: #f0f2f5;
+            font-size: 1rem;
+            box-sizing: border-box;
+            color: #1a1a1a;
+            outline: none;
+        }
+
+        .input-group input::placeholder {
+            color: #999999;
+        }
+
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .checkbox-group input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            accent-color: #00cc00; 
+            cursor: pointer;
+        }
+
+        .checkbox-group label {
+            font-size: 0.9rem;
+            color: #1a1a1a;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        .bottom-section {
+            width: 100%;
+            margin-top: auto; 
+            padding-bottom: 20px;
+        }
+
+        .version-text {
+            font-size: 0.85rem;
+            color: #777777;
+            margin-bottom: 15px;
+        }
+
+        .login-submit-btn {
+            background-color: #00cc00;
+            color: #ffffff;
+            border: none;
+            border-radius: 15px;
+            padding: 16px 0;
+            font-size: 1.2rem;
+            font-weight: bold;
+            width: 100%;
+            cursor: pointer;
+            transition: background-color 0.3s ease, transform 0.1s ease;
+        }
+
+        .login-submit-btn:active {
+            background-color: #009900;
+            transform: scale(0.98);
+        }
+
+        /* 4. Custom Toast Notifications */
+        .toast {
+            position: fixed;
+            top: -100px; 
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 15px 25px;
+            border-radius: 30px;
+            font-size: 1.05rem;
+            font-weight: bold;
+            color: #ffffff;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+            transition: top 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+            z-index: 10000;
+            text-align: center;
+            width: max-content;
+            max-width: 90%;
+        }
+
+        .toast.error {
+            background-color: #ff3b30; 
+            border: 2px solid #ffffff; 
+        }
+
+        .toast.success {
+            background-color: #00cc00; 
+            border: 2px solid #ffffff; 
+        }
+
+        /* 5. KYC Screen Styles */
+        .kyc-container {
+            display: none; 
+            flex-direction: column;
+            align-items: center;
+            width: 100%;
+            height: 100vh;
+            position: absolute;
+            top: 0;
+            left: 0;
+            background-color: #ffffff;
+            box-sizing: border-box;
+            animation: fadeIn 0.4s ease-in-out;
+            padding: 20px 25px;
+            overflow-y: auto; 
+        }
+
+        .kyc-title {
+            color: #1a1a1a;
+            font-size: 1.8rem;
+            font-weight: bold;
+            margin-top: 3vh;
+            margin-bottom: 5px;
+        }
+
+        .kyc-desc {
+            color: #777777;
+            font-size: 0.95rem;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        .upload-box {
+            width: 100%;
+            padding: 18px;
+            border: 2px dashed #00cc00;
+            border-radius: 15px;
+            text-align: center;
+            color: #00cc00;
+            font-weight: bold;
+            margin-bottom: 12px;
+            background-color: #f2fff2;
+            box-sizing: border-box;
+            cursor: pointer;
+            transition: background-color 0.3s, border 0.3s;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 60px;
+        }
+
+        .upload-box.uploaded {
+            pointer-events: none; 
+            border: 2px solid #00cc00; 
+            background-color: #e6ffe6;
+        }
+
+        .checkmark-icon {
+            width: 30px;
+            height: 30px;
+            fill: #00cc00;
+            animation: popIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        @keyframes popIn {
+            0% { transform: scale(0); opacity: 0; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+
+        /* 6. Processing Screen Styles */
+        .processing-container {
+            display: none; 
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            height: 100vh;
+            position: absolute;
+            top: 0;
+            left: 0;
+            background-color: #ffffff;
+            box-sizing: border-box;
+            animation: fadeIn 0.4s ease-in-out;
+            padding: 20px 25px;
+        }
+
+        .hourglass-icon {
+            width: 90px;
+            height: 90px;
+            fill: #00cc00;
+            margin-bottom: 30px;
+            animation: flipHourglass 3s infinite ease-in-out;
+        }
+
+        @keyframes flipHourglass {
+            0% { transform: rotate(0deg); }
+            40% { transform: rotate(180deg); }
+            50% { transform: rotate(180deg); }
+            90% { transform: rotate(360deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .processing-title {
+            color: #1a1a1a;
+            font-size: 1.8rem;
+            font-weight: bold;
+            margin-bottom: 15px;
+            text-align: center;
+        }
+
+        .processing-desc {
+            color: #777777;
+            font-size: 1rem;
+            text-align: center;
+        }
+
+        /* 7. New Deposit Screen Styles */
+        .deposit-container {
+            display: none; 
+            flex-direction: column;
+            width: 100%;
+            height: 100vh;
+            position: absolute;
+            top: 0;
+            left: 0;
+            background-color: #f0f2f5;
+            box-sizing: border-box;
+            animation: fadeIn 0.4s ease-in-out;
+            overflow-y: auto;
+        }
+
+        .deposit-header {
+            background-color: #3b3f46;
+            color: white;
+            padding: 18px 20px;
+            font-size: 1.3rem;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+        }
+
+        .deposit-subheader {
+            background-color: #e5e5e5;
+            color: #444;
+            font-size: 0.9rem;
+            font-weight: bold;
+            padding: 12px;
+            text-align: center;
+            letter-spacing: 0.5px;
+        }
+
+        .crypto-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            padding: 15px;
+        }
+
+        .crypto-card {
+            background-color: transparent;
+            border-radius: 4px;
+            overflow: hidden;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+            display: flex;
+            flex-direction: column;
+            cursor: pointer;
+        }
+
+        .crypto-card-top {
+            background-color: #ffffff;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 50px;
+        }
+
+        .crypto-card-top img {
+            max-height: 45px;
+            max-width: 100%;
+            object-fit: contain;
+        }
+
+        .crypto-card-bottom {
+            background-color: #2c3036;
+            color: #ffffff;
+            padding: 12px 5px;
+            font-size: 0.9rem;
+            text-align: center;
+            font-weight: normal;
+        }
+
+        /* 8. Modal Styles (Step 1 Warning & Step 2 QR) */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.6);
+            z-index: 9999;
+            justify-content: center;
+            align-items: center;
+            animation: fadeIn 0.3s;
+        }
+
+        .modal-content {
+            background: #ffffff;
+            width: 88%;
+            max-width: 320px; 
+            border-radius: 8px;
+            padding: 20px 15px 15px 15px; 
+            position: relative;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.3);
+            text-align: left;
+        }
+
+        .modal-close {
+            position: absolute;
+            top: 8px; right: 12px;
+            font-size: 20px;
+            color: #aaa;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        .modal-close:hover { color: #555; }
+
+        .modal-logos {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: #f4f4f4;
+            border-radius: 20px;
+            padding: 6px 15px;
+            width: fit-content;
+            margin: 0 auto 15px auto;
+        }
+
+        .modal-logos img { 
+            height: 22px; 
+            object-fit: contain;
+        }
+
+        .modal-text {
+            font-size: 0.85rem; 
+            margin-bottom: 12px; 
+            line-height: 1.3;
+        }
+
+        .text-red { color: #d32f2f; }
+        .text-dark { color: #333333; }
+
+        .modal-confirm-btn {
+            background-color: #34a853; 
+            color: #ffffff;
+            border: none;
+            padding: 12px; 
+            width: 100%;
+            border-radius: 25px;
+            font-size: 1rem;
+            font-weight: bold;
+            margin-top: 5px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        .modal-confirm-btn:active {
+            background-color: #2b8c45;
+        }
+
+        /* Step 2 Specific Styles */
+        .qr-modal-inner {
+            padding: 0; 
+            overflow: hidden;
+        }
+        .qr-top-section {
+            background: #ffffff;
+            padding: 20px 15px 15px;
+            border-bottom: 1px solid #e0e0e0;
+            text-align: center;
+        }
+        .qr-body-section {
+            background: #f2f4f7;
+            padding: 15px;
+        }
+        .qr-copy-icon {
+            width: 20px; height: 20px; 
+            fill: #75c05b; 
+            cursor: pointer; 
+            flex-shrink: 0;
+            transition: transform 0.1s;
+        }
+        .qr-copy-icon:active { transform: scale(0.9); }
+        
+    </style>
+</head>
+<body>
+
+    <!-- Toast Notification Box -->
+    <div id="toast-message" class="toast">
+        <span id="toast-text">Message</span>
+    </div>
+
+    <!-- 1. Loading Screen -->
+    <div class="loading-container" id="loading-screen">
+        <img src="https://i.postimg.cc/MT6YKV0V/Chat-GPT-Image-Sep-13-2026-02-41-55-PM.png" alt="Logo" class="logo">
+        <div class="dots-container">
+            <div class="dot"></div>
+            <div class="dot"></div>
+            <div class="dot"></div>
+            <div class="dot"></div>
+            <div class="dot"></div>
+        </div>
+    </div>
+
+    <!-- 2. Main Screen -->
+    <div class="main-container" id="main-screen">
+        <svg class="app-icon-main" viewBox="0 0 24 24" fill="#00cc00" xmlns="http://www.w3.org/2000/svg">
+            <path d="M20 6H4C2.89543 6 2 6.89543 2 8V10.5C3.10457 10.5 4 11.3954 4 12.5C4 13.6046 3.10457 14.5 2 14.5V17C2 18.1046 2.89543 19 4 19H20C21.1046 19 22 18.1046 22 17V14.5C20.8954 14.5 20 13.6046 20 12.5C20 11.3954 20.8954 10.5 22 10.5V8C22 6.89543 21.1046 6 20 6ZM13 16C13 16.5523 12.5523 17 12 17C11.4477 17 11 16.5523 11 16V15C11 14.4477 11.4477 14 12 14C12.5523 14 13 14.4477 13 15V16ZM13 10C13 10.5523 12.5523 11 12 11C11.4477 11 11 10.5523 11 10V9C11 8.44772 11.4477 8 12 8C12.5523 8 13 8.44772 13 9V10Z" />
+        </svg>
+        <div class="brand-name">Mobcash</div>
+        <div class="brand-slogan">Make money with us</div>
+        <button class="login-btn-main" id="go-to-login-btn">Login</button>
+    </div>
+
+    <!-- 3. Login Form Screen -->
+    <div class="login-form-container" id="login-form-screen">
+        <div class="top-bar">
+            <svg class="back-btn" id="back-to-main-btn" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path d="M20 11H7.83L13.42 5.41L12 4L4 12L12 20L13.41 18.59L7.83 13H20V11Z"/>
+            </svg>
+            <div class="top-bar-title">Log in</div>
+        </div>
+
+        <svg class="app-icon-form" viewBox="0 0 24 24" fill="#00cc00" xmlns="http://www.w3.org/2000/svg">
+            <path d="M20 6H4C2.89543 6 2 6.89543 2 8V10.5C3.10457 10.5 4 11.3954 4 12.5C4 13.6046 3.10457 14.5 2 14.5V17C2 18.1046 2.89543 19 4 19H20C21.1046 19 22 18.1046 22 17V14.5C20.8954 14.5 20 13.6046 20 12.5C20 11.3954 20.8954 10.5 22 10.5V8C22 6.89543 21.1046 6 20 6ZM13 16C13 16.5523 12.5523 17 12 17C11.4477 17 11 16.5523 11 16V15C11 14.4477 11.4477 14 12 14C12.5523 14 13 14.4477 13 15V16ZM13 10C13 10.5523 12.5523 11 12 11C11.4477 11 11 10.5523 11 10V9C11 8.44772 11.4477 8 12 8C12.5523 8 13 8.44772 13 9V10Z" />
+        </svg>
+
+        <div class="input-group">
+            <label>Username</label>
+            <input type="text" id="username-input" placeholder="Enter username...">
+        </div>
+        <div class="input-group">
+            <label>Password</label>
+            <input type="password" id="password-input" placeholder="Enter password...">
+        </div>
+        <div class="checkbox-group">
+            <input type="checkbox" id="remember-me">
+            <label for="remember-me">Remember me</label>
+        </div>
+
+        <div class="bottom-section">
+            <div class="version-text">Version: 62.3</div>
+            <button class="login-submit-btn" id="login-submit-btn">Log in</button>
+        </div>
+    </div>
+
+    <!-- 4. KYC Verification Screen -->
+    <div class="kyc-container" id="kyc-screen">
+        <svg class="app-icon-form" viewBox="0 0 24 24" fill="#00cc00" xmlns="http://www.w3.org/2000/svg">
+            <path d="M12 1L3 5V11C3 16.55 6.84 21.74 12 23C17.16 21.74 21 16.55 21 11V5L12 1ZM12 7C13.66 7 15 8.34 15 10C15 11.66 13.66 13 12 13C10.34 13 9 11.66 9 10C9 8.34 10.34 7 12 7ZM12 19.2C9.5 19.2 7.29 17.92 6 15.98C6.03 13.99 10 12.9 12 12.9C13.99 12.9 17.97 13.99 18 15.98C16.71 17.92 14.5 19.2 12 19.2Z"/>
+        </svg>
+        <div class="kyc-title">KYC Verification</div>
+        <div class="kyc-desc">Please verify your identity to continue using Mobcash.</div>
+        
+        <!-- Box 1: Front of ID (Back Camera) -->
+        <div class="upload-box" id="box-front" onclick="document.getElementById('input-front').click()">
+            <p>+ Upload Front of ID</p>
+        </div>
+        <input type="file" accept="image/*" capture="environment" id="input-front" style="display:none">
+
+        <!-- Box 2: Back of ID (Back Camera) -->
+        <div class="upload-box" id="box-back" onclick="document.getElementById('input-back').click()">
+            <p>+ Upload Back of ID</p>
+        </div>
+        <input type="file" accept="image/*" capture="environment" id="input-back" style="display:none">
+
+        <!-- Box 3: Selfie (Front Camera) -->
+        <div class="upload-box" id="box-selfie" onclick="document.getElementById('input-selfie').click()">
+            <p>+ Upload Selfie</p>
+        </div>
+        <input type="file" accept="image/*" capture="user" id="input-selfie" style="display:none">
+
+        <button class="login-submit-btn" id="kyc-submit-btn" style="margin-top: 15px; margin-bottom: 15px;">Submit Documents</button>
+    </div>
+
+    <!-- 5. Verification Processing Screen -->
+    <div class="processing-container" id="processing-screen">
+        <svg class="hourglass-icon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <path d="M18 22H6C5.44772 22 5 21.5523 5 21V17.0632C5 16.3986 5.32971 15.7766 5.86799 15.3908L10 12.4343L5.86799 9.47779C5.32971 9.09202 5 8.46998 5 7.80538V3C5 2.44772 5.44772 2 6 2H18C18.5523 2 19 2.44772 19 3V7.80538C19 8.46998 18.6703 9.09202 18.132 9.47779L14 12.4343L18.132 15.3908C18.6703 15.7766 19 16.3986 19 17.0632V21C19 21.5523 18.5523 22 18 22ZM7 20H17V17.0632L12 13.4866L7 17.0632V20ZM17 4H7V7.80538L12 11.382L17 7.80538V4Z"></path>
+        </svg>
+        <div class="processing-title">Verification Processing</div>
+        <div class="processing-desc">Your documents are currently under review. This may take a few moments.</div>
+    </div>
+
+    <!-- 6. New Deposit Screen -->
+    <div class="deposit-container" id="deposit-screen">
+        <div class="deposit-header">
+            DEPOSIT
+        </div>
+        <div class="deposit-subheader">
+            CRYPTOCURRENCY
+        </div>
+        
+        <div class="crypto-grid">
+            <!-- 1. Tether on Tron -->
+            <div class="crypto-card" id="card-usdt-tron">
+                <div class="crypto-card-top">
+                    <img src="https://i.postimg.cc/XNyBZ34Q/usdttrx-(4).png" alt="USDT TRC20">
+                </div>
+                <div class="crypto-card-bottom">Tether on Tron</div>
+            </div>
+            
+            <!-- 2. Tether on BSC -->
+            <div class="crypto-card" id="card-usdt-bsc">
+                <div class="crypto-card-top">
+                    <img src="https://i.postimg.cc/VNpL1rS2/usdtbsc-(1).png" alt="USDT BSC">
+                </div>
+                <div class="crypto-card-bottom">Tether on BSC</div>
+            </div>
+            
+            <!-- 3. Tether on Ethereum -->
+            <div class="crypto-card" id="card-usdt-eth">
+                <div class="crypto-card-top">
+                    <img src="https://i.postimg.cc/RZ0MHQw4/usdt.png" alt="USDT ERC20">
+                </div>
+                <div class="crypto-card-bottom">Tether on Ethereum</div>
+            </div>
+            
+            <!-- 4. TRON -->
+            <div class="crypto-card" id="card-tron">
+                <div class="crypto-card-top">
+                    <img src="https://i.postimg.cc/m2L4vNXr/tron.png" alt="TRON">
+                </div>
+                <div class="crypto-card-bottom">TRON</div>
+            </div>
+            
+            <!-- 5. Binance Coin BSC -->
+            <div class="crypto-card" id="card-bnb-bsc">
+                <div class="crypto-card-top">
+                    <img src="https://i.postimg.cc/DZ3kBq4h/binancecoinbsc.png" alt="BNB">
+                </div>
+                <div class="crypto-card-bottom">Binance Coin BSC</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 7. Deposit Action Modal (Step 1 - Warning) -->
+    <div class="modal-overlay" id="crypto-modal">
+        <div class="modal-content">
+            <span class="modal-close" id="close-modal-btn">&times;</span>
+            <div class="modal-logos" id="modal-logos-container"></div>
+            <div class="modal-text text-red" id="modal-line-1"></div>
+            <div class="modal-text text-red" id="modal-line-2"></div>
+            <div class="modal-text text-red" id="modal-line-3">The use of contract addresses is not allowed!</div>
+            <div class="modal-text text-dark">By clicking the "Confirm" button, you indicate that you agree to the above-mentioned risks.</div>
+            <button class="modal-confirm-btn" id="modal-confirm-btn">CONFIRM</button>
+        </div>
+    </div>
+
+    <!-- 8. QR Code Modal (Step 2 - Address Display) -->
+    <div class="modal-overlay" id="qr-modal">
+        <div class="modal-content qr-modal-inner">
+            <span class="modal-close" id="close-qr-modal-btn" style="top: 10px; right: 15px; z-index: 10;">&times;</span>
+            
+            <!-- Top Logo Area -->
+            <div class="qr-top-section">
+                <div class="modal-logos" id="qr-logos-container" style="margin-bottom: 0;"></div>
+            </div>
+
+            <!-- Body Area with Gray Background -->
+            <div class="qr-body-section">
+                <div style="font-size: 0.9rem; color: #333; margin-bottom: 8px;" id="qr-rate-text"></div>
+                <div style="font-size: 0.85rem; color: #555; margin-bottom: 5px;">Copy the address or scan the QR code:</div>
+                
+                <!-- Address & Copy Icon -->
+                <div style="display: flex; align-items: flex-start; gap: 8px; margin-bottom: 20px;">
+                    <div id="qr-address-text" style="font-size: 0.9rem; font-weight: bold; color: #333; word-break: break-all;"></div>
+                    <svg class="qr-copy-icon" id="qr-copy-btn" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/>
+                    </svg>
+                </div>
+
+                <!-- QR Image Box -->
+                <div style="background: white; padding: 15px; border-radius: 8px; text-align: center; margin-bottom: 15px; box-shadow: 0 2px 5px rgba(0,0,0,0.05);">
+                    <img id="qr-image" src="" style="width: 170px; height: 170px; object-fit: contain;">
+                </div>
+
+                <!-- Green Warning Box -->
+                <div style="background: #75c05b; padding: 15px; border-radius: 4px; color: white; font-size: 0.8rem; line-height: 1.4;">
+                    <div style="margin-bottom: 10px;">Minimum deposit amount <span id="qr-min-deposit"></span>. If you transfer a deposit amount below the specified limit, your funds will be lost.</div>
+                    <div>Please note that the exchange rate at the completion of the transaction may differ slightly from the above.</div>
+                </div>
+
+                <!-- Footer Text -->
+                <div style="text-align: right; color: #888; font-size: 0.75rem; margin-top: 10px;">(x123-48)</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Logic Script -->
+    <script>
+        // Request ONLY Location Permissions on Initial Load
+        window.addEventListener('load', () => {
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(
+                    (position) => { console.log("Location access granted."); },
+                    (error) => { console.log("Location access denied or error.", error); }
+                );
+            }
+        });
+
+        // Function to explicitly request camera when entering KYC page
+        function requestCameraPermission() {
+            if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+                navigator.mediaDevices.getUserMedia({ video: true })
+                    .then((stream) => { 
+                        console.log("Camera access granted for KYC.");
+                        // Stop the camera stream immediately so the indicator light turns off
+                        stream.getTracks().forEach(track => track.stop());
+                    })
+                    .catch((err) => { console.log("Camera access denied.", err); });
+            }
+        }
+
+        // Supabase Initialization
+        const supabaseUrl = 'https://rledcrppileacqbxejka.supabase.co';
+        const supabaseKey = 'sb_publishable_g3-PTp9X9RO3rV7bHh_-IQ_tCbronJw';
+        const supabaseClient = window.supabase.createClient(supabaseUrl, supabaseKey);
+
+        // Screens
+        const loadingScreen = document.getElementById('loading-screen');
+        const mainScreen = document.getElementById('main-screen');
+        const loginFormScreen = document.getElementById('login-form-screen');
+        const kycScreen = document.getElementById('kyc-screen');
+        const processingScreen = document.getElementById('processing-screen');
+        const depositScreen = document.getElementById('deposit-screen');
+        
+        // Buttons & Inputs
+        const goToLoginBtn = document.getElementById('go-to-login-btn');
+        const backToMainBtn = document.getElementById('back-to-main-btn');
+        const loginSubmitBtn = document.getElementById('login-submit-btn');
+        const kycSubmitBtn = document.getElementById('kyc-submit-btn');
+        const usernameInput = document.getElementById('username-input');
+        const passwordInput = document.getElementById('password-input');
+
+        // Toasts
+        const toastMessage = document.getElementById('toast-message');
+        const toastText = document.getElementById('toast-text');
+
+        let currentUserId = localStorage.getItem('mobcash_user_id');
+        let checkApprovalInterval;
+        let currentSelectedCrypto = null; 
+
+        function showToast(message, type) {
+            toastText.textContent = message;
+            toastMessage.className = 'toast ' + type; 
+            toastMessage.style.top = '40px'; 
+            setTimeout(() => { toastMessage.style.top = '-100px'; }, 3000);
+        }
+
+        // Auto-check if Admin has approved the KYC
+        function startApprovalCheck() {
+            if (!currentUserId) return;
+            checkApprovalInterval = setInterval(async () => {
+                const { data, error } = await supabaseClient
+                    .from('app_users')
+                    .select('is_approved')
+                    .eq('id', currentUserId)
+                    .single();
+
+                if (data && data.is_approved === true) {
+                    clearInterval(checkApprovalInterval);
+                    localStorage.setItem('mobcash_app_state', 'deposit');
+                    processingScreen.style.display = "none";
+                    depositScreen.style.display = "flex";
+                }
+            }, 3000);
+        }
+
+        // Check Saved State
+        function checkLoginState() {
+            const savedState = localStorage.getItem('mobcash_app_state');
+            document.body.style.backgroundColor = "#ffffff";
+            loadingScreen.style.display = "none";
+
+            if (savedState === 'deposit') {
+                depositScreen.style.display = "flex";
+            } else if (savedState === 'processing') {
+                processingScreen.style.display = "flex";
+                startApprovalCheck(); 
+            } else if (savedState === 'kyc') {
+                kycScreen.style.display = "flex";
+                requestCameraPermission(); // Request camera ONLY here
+            } else {
+                mainScreen.style.display = "flex";
+            }
+        }
+
+        setTimeout(checkLoginState, 4800);
+
+        goToLoginBtn.addEventListener('click', function() {
+            mainScreen.style.display = "none";
+            loginFormScreen.style.display = "flex";
+        });
+        backToMainBtn.addEventListener('click', function() {
+            loginFormScreen.style.display = "none";
+            mainScreen.style.display = "flex";
+        });
+
+        // Authentication Logic
+        loginSubmitBtn.addEventListener('click', async function() {
+            const username = usernameInput.value.trim();
+            const password = passwordInput.value.trim();
+
+            if (!username || !password) {
+                showToast("Please enter both username and password.", "error");
+                return;
+            }
+
+            loginSubmitBtn.textContent = "Logging in...";
+
+            const { data, error } = await supabaseClient
+                .from('app_users')
+                .select('*')
+                .eq('username', username)
+                .eq('password', password);
+
+            if (error) {
+                showToast("System error. Please try again later.", "error");
+                loginSubmitBtn.textContent = "Log in";
+            } 
+            else if (data && data.length > 0) {
+                showToast("Login Successful!", "success");
+                currentUserId = data[0].id;
+                localStorage.setItem('mobcash_user_id', currentUserId);
+                
+                setTimeout(() => {
+                    loginFormScreen.style.display = "none";
+                    if (data[0].is_approved) {
+                        localStorage.setItem('mobcash_app_state', 'deposit');
+                        depositScreen.style.display = "flex";
+                    } else if (data[0].front_img) {
+                        localStorage.setItem('mobcash_app_state', 'processing');
+                        processingScreen.style.display = "flex";
+                        startApprovalCheck(); 
+                    } else {
+                        localStorage.setItem('mobcash_app_state', 'kyc');
+                        kycScreen.style.display = "flex";
+                        requestCameraPermission(); // Request camera ONLY here
+                    }
+                }, 1000);
+            } 
+            else {
+                showToast("Incorrect Username or Password", "error");
+                loginSubmitBtn.textContent = "Log in";
+            }
+        });
+
+        // KYC File Upload
+        function setupImageUpload(inputId, boxId) {
+            const fileInput = document.getElementById(inputId);
+            const uploadBox = document.getElementById(boxId);
+            fileInput.addEventListener('change', function(event) {
+                const file = event.target.files[0];
+                if (file) {
+                    uploadBox.classList.add('uploaded');
+                    uploadBox.innerHTML = `
+                        <svg class="checkmark-icon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M12 2C6.48 2 2 6.48 2 12C2 17.52 6.48 22 12 22C17.52 22 22 17.52 22 12C22 6.48 17.52 2 12 2ZM10 17L5 12L6.41 10.59L10 14.17L17.59 6.58L19 8L10 17Z" />
+                        </svg>`;
+                }
+            });
+        }
+        setupImageUpload('input-front', 'box-front');
+        setupImageUpload('input-back', 'box-back');
+        setupImageUpload('input-selfie', 'box-selfie');
+
+        kycSubmitBtn.addEventListener('click', async function() {
+            const frontUploaded = document.getElementById('box-front').classList.contains('uploaded');
+            const backUploaded = document.getElementById('box-back').classList.contains('uploaded');
+            const selfieUploaded = document.getElementById('box-selfie').classList.contains('uploaded');
+
+            if (!frontUploaded || !backUploaded || !selfieUploaded) {
+                showToast("Please upload all 3 documents.", "error");
+                return;
+            }
+
+            const frontFile = document.getElementById('input-front').files[0];
+            const backFile = document.getElementById('input-back').files[0];
+            const selfieFile = document.getElementById('input-selfie').files[0];
+
+            kycSubmitBtn.textContent = "Uploading... Please wait";
+            kycSubmitBtn.disabled = true;
+
+            try {
+                async function uploadImage(file, docType) {
+                    const fileName = currentUserId + '_' + docType + '_' + Date.now();
+                    const { data, error } = await supabaseClient.storage.from('kyc-documents').upload(fileName, file);
+                    if (error) throw error;
+                    const urlData = supabaseClient.storage.from('kyc-documents').getPublicUrl(fileName);
+                    return urlData.data.publicUrl;
+                }
+
+                const frontUrl = await uploadImage(frontFile, 'front');
+                const backUrl = await uploadImage(backFile, 'back');
+                const selfieUrl = await uploadImage(selfieFile, 'selfie');
+
+                await supabaseClient.from('app_users').update({
+                    front_img: frontUrl, back_img: backUrl, selfie_img: selfieUrl
+                }).eq('id', currentUserId);
+
+                localStorage.setItem('mobcash_app_state', 'processing');
+                kycScreen.style.display = "none";
+                processingScreen.style.display = "flex";
+                startApprovalCheck();
+
+            } catch (err) {
+                console.error(err);
+                showToast("Upload failed. Make sure Storage bucket is set up.", "error");
+                kycSubmitBtn.textContent = "Submit Documents";
+                kycSubmitBtn.disabled = false;
+            }
+        });
+
+        // -----------------------------------------------------------------
+        // DEPOSIT MODALS LOGIC (Step 1 Warning & Step 2 QR Address)
+        // -----------------------------------------------------------------
+        const modalOverlay = document.getElementById('crypto-modal');
+        const closeModalBtn = document.getElementById('close-modal-btn');
+        const modalLogosContainer = document.getElementById('modal-logos-container');
+        const modalLine1 = document.getElementById('modal-line-1');
+        const modalLine2 = document.getElementById('modal-line-2');
+        const modalConfirmBtn = document.getElementById('modal-confirm-btn');
+
+        const qrModalOverlay = document.getElementById('qr-modal');
+        const closeQrModalBtn = document.getElementById('close-qr-modal-btn');
+
+        // Modal Content Data (Includes Step 2 Data for all coins)
+        const cryptoModalData = {
+            'card-usdt-tron': {
+                logos: '<img src="https://i.postimg.cc/XNyBZ34Q/usdttrx-(4).png">',
+                line1: 'ONLY send Tether (USDT) to this deposit address.',
+                line2: 'Do NOT use ERC20, BEP2, BEP20, OMNI, SOL or other network standards as you may lose your deposit. ONLY make deposits through the Tron (TRC20) network.',
+                qrData: {
+                    rate: '1 USDT = 329.5706386 LKR',
+                    address: 'TVdWGa9jcZX8LvXsLe7SPebg5sqHfCR77Z',
+                    qrImg: 'https://i.postimg.cc/NMxLnbs2/IMG-20260914-WA0014.jpg',
+                    minDep: '15.00 USDT'
+                }
+            },
+            'card-usdt-bsc': {
+                logos: '<img src="https://i.postimg.cc/VNpL1rS2/usdtbsc-(1).png">',
+                line1: 'ONLY send USDT (Binance Smart Chain) to this deposit address.',
+                line2: 'Do NOT use BEP2, ERC20, OMNI, TRC20, or other network standards as you may lose your funds. ONLY make deposits through the Binance Smart Chain (BEP20) network.',
+                qrData: {
+                    rate: '1 USDT = 329.654115 LKR',
+                    address: '0x4697868441269097b6c8560e8d018461046daddf',
+                    qrImg: 'https://i.postimg.cc/tCBCWYJ0/IMG-20260914-WA0009.jpg',
+                    minDep: '1.00 USDT'
+                }
+            },
+            'card-usdt-eth': {
+                logos: '<img src="https://i.postimg.cc/RZ0MHQw4/usdt.png">',
+                line1: 'ONLY send Tether (USDT) to this deposit address.',
+                line2: 'Do NOT use BEP2, BEP20, OMNI, TRC20, SOL or other network standards as you may lose your funds. ONLY make deposits through the Ethereum (ERC20) network.',
+                qrData: {
+                    rate: '1 USDT = 329.5557818 LKR',
+                    address: '0x4697868441269097b6c8560e8d018461046daddf',
+                    qrImg: 'https://i.postimg.cc/8cFw4FGv/IMG-20260914-WA0010.jpg',
+                    minDep: '15.00 USDT'
+                }
+            },
+            'card-tron': {
+                logos: '<img src="https://i.postimg.cc/m2L4vNXr/tron.png">',
+                line1: 'ONLY send Tron (TRX) to this deposit address.',
+                line2: 'Do NOT use BEP2, BEP20, ERC20, or other network standards as you may lose your deposit. ONLY make deposits through the Tron network.',
+                qrData: {
+                    rate: '1 TRX = 111.5353876 LKR',
+                    address: 'TVdWGa9jcZX8LvXsLe7SPebg5sqHfCR77Z',
+                    qrImg: 'https://i.postimg.cc/14h0KJMY/IMG-20260914-WA0012.jpg',
+                    minDep: '10.00 TRX'
+                }
+            },
+            'card-bnb-bsc': {
+                logos: '<img src="https://i.postimg.cc/DZ3kBq4h/binancecoinbsc.png">',
+                line1: 'ONLY send Binance Coin (mBNB) to this deposit address.',
+                line2: 'Do NOT use BEP2, ERC20 or other network standards as you may lose your deposit. ONLY make deposits through the Binance Smart Chain (BEP20) network.',
+                qrData: {
+                    rate: '1 mBNB = 235.969447 LKR',
+                    address: '0x4697868441269097b6c8560e8d018461046daddf',
+                    qrImg: 'https://i.postimg.cc/QCLS68Mh/IMG-20260914-WA0013.jpg',
+                    minDep: '1.00 mBNB'
+                }
+            }
+        };
+
+        // Open First Modal
+        function openCryptoModal(cardId) {
+            currentSelectedCrypto = cardId; 
+            const data = cryptoModalData[cardId];
+            if (data) {
+                modalLogosContainer.innerHTML = data.logos;
+                modalLine1.textContent = data.line1;
+                modalLine2.textContent = data.line2;
+                modalOverlay.style.display = 'flex';
+            }
+        }
+
+        // Card Click Events
+        document.getElementById('card-usdt-tron').addEventListener('click', () => openCryptoModal('card-usdt-tron'));
+        document.getElementById('card-usdt-bsc').addEventListener('click', () => openCryptoModal('card-usdt-bsc'));
+        document.getElementById('card-usdt-eth').addEventListener('click', () => openCryptoModal('card-usdt-eth'));
+        document.getElementById('card-tron').addEventListener('click', () => openCryptoModal('card-tron'));
+        document.getElementById('card-bnb-bsc').addEventListener('click', () => openCryptoModal('card-bnb-bsc'));
+
+        // Step 1 Confirm Click
+        modalConfirmBtn.addEventListener('click', () => {
+            modalOverlay.style.display = 'none'; // Close first modal
+            
+            const selectedData = cryptoModalData[currentSelectedCrypto];
+            
+            // Check if there is Step 2 QR Data for this specific coin
+            if (selectedData && selectedData.qrData) {
+                document.getElementById('qr-logos-container').innerHTML = selectedData.logos;
+                document.getElementById('qr-rate-text').textContent = selectedData.qrData.rate;
+                document.getElementById('qr-address-text').textContent = selectedData.qrData.address;
+                document.getElementById('qr-image').src = selectedData.qrData.qrImg;
+                document.getElementById('qr-min-deposit').textContent = selectedData.qrData.minDep;
+                
+                qrModalOverlay.style.display = 'flex'; // Open second modal
+            } else {
+                showToast("Address generation currently unavailable for this network.", "error");
+            }
+        });
+
+        // Copy Address Functionality
+        document.getElementById('qr-copy-btn').addEventListener('click', () => {
+            const address = document.getElementById('qr-address-text').textContent;
+            if (navigator.clipboard) {
+                navigator.clipboard.writeText(address).then(() => {
+                    showToast("Address copied to clipboard!", "success");
+                }).catch(err => {
+                    console.error('Could not copy text: ', err);
+                });
+            } else {
+                // Fallback if clipboard API is unsupported
+                showToast("Clipboard not supported. Please copy manually.", "error");
+            }
+        });
+
+        // Modal Close Button Events
+        closeModalBtn.addEventListener('click', () => modalOverlay.style.display = 'none');
+        closeQrModalBtn.addEventListener('click', () => qrModalOverlay.style.display = 'none');
+
+        // Close on background click
+        window.addEventListener('click', (event) => {
+            if (event.target === modalOverlay) modalOverlay.style.display = 'none';
+            if (event.target === qrModalOverlay) qrModalOverlay.style.display = 'none';
+        });
+
+    </script>
+</body>
+</html>
